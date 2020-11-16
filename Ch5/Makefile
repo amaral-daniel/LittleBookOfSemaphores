@@ -7,12 +7,12 @@ CFLAGS  = -Wall
 
 # the build target executable:
 TARGET = main
-EXECUTABLE = simpleShell
+EXECUTABLE = riverCrossing
 
 all: $(TARGET)
 
 $(TARGET): $(TARGET).c
-	$(CC) $(CFLAGS) -o $(EXECUTABLE) $(TARGET).c
+	$(CC) $(CFLAGS) -o $(EXECUTABLE) $(TARGET).c -Wall
 
 clean:
 	$(RM) $(TARGET)
