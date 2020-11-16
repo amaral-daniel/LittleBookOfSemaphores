@@ -209,7 +209,7 @@ int main()
   }
   pthread_mutex_lock(&mutex);
   //finish program only we cannot send boats or if the last combination is
-  //invalid (maybe it would be nice to plan for this last case)
+  //invalid 
 
   //do not continue while we can still have valid combinations
   while (canFillNewBoat())
