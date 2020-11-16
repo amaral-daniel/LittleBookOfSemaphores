@@ -1,11 +1,4 @@
-//Linux hackers and serfs (Microsoft employees) want to cross a river
-//The ferry can only leave when there are exactly 4 people onboard
-//It is not allowed to have neither of the following combinations: 3:1 and 1:3
-//Each person is a thread and must call a function board(), all four threads must have
-//invoked board() before the next threads of the next boatload do.
-
-//After the boat is full, a function named rowBoat must be called by exactly
-//1 thread (not more not fewer).
+//5.7.2 River crossing problem
 
 #include <stdio.h>
 #include <pthread.h>
@@ -18,13 +11,24 @@
 //This struct stores the complete state at any time
 struct State
 {
+  //how many people waiting to board:
   int hackersQueue;
   int serfsQueue;
+  //how many people onboard
   int hackersOnboard;
   int serfsOnboard;
   int freeSpots;
+  //how many passengers have crossed so far:
   int crossedHackers;
   int crossedSerfs;
+  //attentionCalled  will be used to inform the threads if they need to leave
+ //or if the boat is departing
+  int attentionCalled;
+  //passengers must leave the boat
+  int leaveBoat;
+  //boat is departing
+  int depart;
+
 } state;
 
 void printState()
@@ -36,15 +40,18 @@ void printState()
   printf("* %i  free spots      *\n",state.freeSpots);
   printf("* %i  serfs onboard   *\n",state.serfsOnboard);
   printf("* %i  hackers onboard *\n",state.hackersOnboard);
+  printf("* %i  hackers crossed *\n",state.crossedHackers);
+  printf("* %i  serfs crossed   *\n",state.crossedSerfs);
   printf("***********************\n");
 }
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 
-void row_boat()
+void rowBoat()
 {
   printf("Boat is sailing \n");
+
   state.crossedHackers += state.hackersOnboard;
   state.crossedSerfs += state.serfsOnboard;
   state.serfsOnboard = 0;
@@ -54,23 +61,47 @@ void row_boat()
 
 bool hackerCanBoard()
 {
+  //check if hacker can safely board
   if ((state.hackersOnboard ==0 && state.serfsOnboard ==3)
       ||(state.hackersOnboard ==2 && state.serfsOnboard ==1)
     ||(state.freeSpots == 0))
         return false;
+
+  //check if hacker can cause a deadlock
+  if ((state.hackersOnboard ==2 && state.hackersQueue == 0)
+    ||(state.hackersOnboard == 0 && state.hackersQueue == 1))
+    {
+        return false;
+    }
   return true;
 }
 
 bool serfCanBoard()
 {
+  //check if serf can safely board
   if ((state.serfsOnboard ==0 && state.hackersOnboard ==3)
       ||(state.serfsOnboard ==2 && state.hackersOnboard ==1)
     ||(state.freeSpots == 0))
     {
-      printf("Poor serf cannot board \n");
         return false;
     }
+    //check if hacker can cause a deadlock
+    if ((state.serfsOnboard ==2 && state.serfsQueue == 1)
+      ||(state.serfsOnboard == 0 && state.serfsQueue == 1))
+      {
+          return false;
+      }
   return true;
+}
+
+void unboardEveryone()
+{
+  printf("Everyone unboarded \n");
+  state.hackersQueue += state.hackersOnboard;
+  state.serfsQueue += state.serfsOnboard;
+  state.serfsOnboard = 0;
+  state.hackersOnboard = 0;
+  state.freeSpots = 4;
 }
 
 void boardHacker()
@@ -89,50 +120,76 @@ void boardSerf()
   state.serfsOnboard+=1;
 }
 
+bool canFillNewBoat()
+{
+  //if there are no possible combinations, job is done
+  if(state.serfsQueue + state.serfsOnboard == 1 && state.hackersOnboard + state.hackersQueue <= 3 )
+    return false;
+  if(state.serfsQueue + state.serfsOnboard <= 3 && state.hackersOnboard + state.hackersQueue == 1 )
+    return false;
+  return true;
+}
+
 void *hackerThread()
 {
-  usleep(rand()%2000000);
-  pthread_mutex_lock(&mutex);
+  //sleep for up to 2s to add some randomness
 
-  while (!hackerCanBoard())
-      pthread_cond_wait(&cond, &mutex);
-  boardHacker();
-  printState();
-  if(state.freeSpots == 0)
-  {
-    row_boat();
+    usleep(rand()%2000000);
+    pthread_mutex_lock(&mutex);
+    //thread does not continue until it can board
+    while (!hackerCanBoard())
+        pthread_cond_wait(&cond, &mutex);
+    boardHacker();
     printState();
-  }
-  pthread_cond_signal(&cond);
-  pthread_mutex_unlock(&mutex);
-  return NULL;
+    //boat is full, it can leave. Last one to join the pool is the captain
+    if(state.freeSpots == 0)
+    {
+      rowBoat();
+      printState();
+    }
+    pthread_cond_signal(&cond);
+    pthread_mutex_unlock(&mutex);
+    //hacker thread has finished its work, it can modify the cond variable and
+    //unlock the mutex
+
+    return NULL;
+
 }
 
 void *serfThread()
 {
+  //sleep for up to 2s to add some randomness
   usleep(rand()%2000000);
+
   pthread_mutex_lock(&mutex);
 
+  //thread does not continue until it can board
   while (!serfCanBoard())
       pthread_cond_wait(&cond, &mutex);
   boardSerf();
   printState();
+  //boat is full, it can leave
   if(state.freeSpots == 0)
   {
-    row_boat();
+    //last one to join calls row_boat, this way we make sure it is called
+    //only once
+    rowBoat();
     printState();
   }
+  //serf thread has finished its work, it can modify the cond variable and
+  //unlock the mutex
   pthread_cond_signal(&cond);
   pthread_mutex_unlock(&mutex);
   return NULL;
 }
+
 
 
 int main()
 {
 
-  int initialSerfsQueue = 6;
-  int initialHackersQueue = 6;
+  int initialSerfsQueue = rand()%MAX_PASSENGERS;
+  int initialHackersQueue = MAX_PASSENGERS - initialSerfsQueue;
   state.hackersQueue = initialSerfsQueue;
   state.serfsQueue = initialHackersQueue;
   state.hackersOnboard = 0;
@@ -140,8 +197,6 @@ int main()
   state.freeSpots = 4;
   state.crossedHackers = 0;
   state.crossedSerfs = 0;
-
-
 
   pthread_t passengers[MAX_PASSENGERS];
   for(int i = 0 ; i < initialSerfsQueue; i++)
@@ -153,10 +208,19 @@ int main()
     pthread_create(&passengers[i],NULL,serfThread,NULL);
   }
   pthread_mutex_lock(&mutex);
-  while (state.hackersQueue != 0 || state.serfsQueue != 0)
+  //finish program only we cannot send boats or if the last combination is
+  //invalid (maybe it would be nice to plan for this last case)
+
+  //do not continue while we can still have valid combinations
+  while (canFillNewBoat())
       pthread_cond_wait(&cond, &mutex);
   pthread_mutex_unlock(&mutex);
+
   printf("All possible passengers have completed their trips \n");
+  printf("***********************\n");
+  printf("* %i  hackers crossed *\n",state.crossedHackers);
+  printf("* %i  serfs crossed   *\n",state.crossedSerfs);
+  printf("***********************\n");
   return(0);
 
 }
