@@ -203,13 +203,13 @@ int main()
   {
     pthread_create(&passengers[i],NULL,hackerThread,NULL);
   }
-  for(int i = state.hackersQueue; i < initialHackersQueue + initialSerfsQueue; i++)
+  for(int i = initialSerfsQueue; i < initialHackersQueue + initialSerfsQueue; i++)
   {
     pthread_create(&passengers[i],NULL,serfThread,NULL);
   }
   pthread_mutex_lock(&mutex);
   //finish program only we cannot send boats or if the last combination is
-  //invalid 
+  //invalid
 
   //do not continue while we can still have valid combinations
   while (canFillNewBoat())
