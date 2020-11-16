@@ -12,7 +12,7 @@ EXECUTABLE = riverCrossing
 all: $(TARGET)
 
 $(TARGET): $(TARGET).c
-	$(CC) $(CFLAGS) -o $(EXECUTABLE) $(TARGET).c -Wall
+	$(CC) $(CFLAGS) -o $(EXECUTABLE) $(TARGET).c
 
 clean:
 	$(RM) $(TARGET)
