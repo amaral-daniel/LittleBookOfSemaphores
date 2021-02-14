@@ -7,7 +7,7 @@ CFLAGS  = -Wall
 
 # the build target executable:
 TARGET = main
-EXECUTABLE = simpleShell
+EXECUTABLE = roomParty
 
 all: $(TARGET)
 
